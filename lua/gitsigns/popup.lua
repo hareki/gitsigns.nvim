@@ -1,6 +1,7 @@
 local api = vim.api
 
 local M = {}
+M.ignore_cursor_moved = false
 
 --- @param bufnr integer
 --- @param lines string[]
@@ -216,6 +217,11 @@ local function create_win(bufnr, opts, id)
   api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
     group = group_id,
     callback = function()
+      if M.ignore_cursor_moved then
+        M.ignore_cursor_moved = false
+        return
+      end
+
       local cursor = api.nvim_win_get_cursor(0)
       -- Did the cursor REALLY change (neovim/neovim#12923)
       if
