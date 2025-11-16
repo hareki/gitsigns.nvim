@@ -236,6 +236,7 @@ local function create_win(bufnr, opts, id)
 
   api.nvim_create_autocmd({ 'CursorMoved', 'CursorMovedI' }, {
     group = group_id,
+    nested = true,
     callback = function()
       if M.ignore_cursor_moved then
         M.ignore_cursor_moved = false
