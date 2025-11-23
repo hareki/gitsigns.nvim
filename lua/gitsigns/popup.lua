@@ -1,4 +1,5 @@
 local api = vim.api
+local config = require('gitsigns.config').config
 
 local M = {}
 M.ignore_cursor_moved = false
@@ -29,6 +30,15 @@ local function expand_height(winid, nlines, border)
   border = border or (vim.fn.exists('&winborder') == 1 and vim.o.winborder or '')
   local newheight = 0
   local maxheight = vim.o.lines - vim.o.cmdheight - (border ~= '' and 2 or 0)
+
+  if config.get_popup_max_height then
+    local user_max_height = config.get_popup_max_height
+    if type(user_max_height) == 'function' then
+      user_max_height = user_max_height()
+    end
+    maxheight = math.min(maxheight, user_max_height)
+  end
+
   for _ = 0, 50 do
     local winheight = api.nvim_win_get_height(winid)
     if newheight > winheight then
