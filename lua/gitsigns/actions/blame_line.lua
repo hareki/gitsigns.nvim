@@ -148,8 +148,12 @@ end
 
 --- @async
 --- @param opts Gitsigns.LineBlameOpts?
-return function(opts)
+--- @param on_open? fun()
+return function(opts, on_open)
   if popup.focus_open('blame') then
+    if on_open then
+      on_open()
+    end
     return
   end
 
@@ -206,5 +210,9 @@ return function(opts)
 
   if api.nvim_win_is_valid(popup_winid) and api.nvim_buf_is_valid(popup_bufnr) then
     popup.update(popup_winid, popup_bufnr, blame_linespec, config.preview_config)
+  end
+
+  if on_open then
+    on_open()
   end
 end
