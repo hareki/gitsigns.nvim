@@ -5,15 +5,20 @@ local clear = helpers.clear
 local eq = helpers.eq
 local exec_lua = helpers.exec_lua
 local git = helpers.git
-local scratch = helpers.scratch
 local setup_test_repo = helpers.setup_test_repo
 local write_to_file = helpers.write_to_file
+local scratch --- @type string
 
 helpers.env()
+
+local function refresh_paths()
+  scratch = helpers.scratch
+end
 
 describe('git', function()
   before_each(function()
     clear()
+    refresh_paths()
     helpers.setup_path()
   end)
 
@@ -88,11 +93,13 @@ describe('git', function()
       local Repo = require('gitsigns.git.repo')
 
       local repo = assert(async.run(Repo.get, repo_dir):wait(5000))
-      return async
+      local ret = async
         .run(function()
           return repo:log_rename_status('HEAD~1', 'new name.txt')
         end)
         :wait(5000)
+      repo:unref()
+      return ret
     end, scratch)
 
     eq('old name.txt', old_relpath)
@@ -115,11 +122,13 @@ describe('git', function()
       local Repo = require('gitsigns.git.repo')
 
       local repo = assert(async.run(Repo.get, repo_dir):wait(5000))
-      return async
+      local ret = async
         .run(function()
           return repo:log_rename_status('HEAD~1', 'bår.txt')
         end)
         :wait(5000)
+      repo:unref()
+      return ret
     end, scratch)
 
     eq('föobær.txt', old_relpath)
