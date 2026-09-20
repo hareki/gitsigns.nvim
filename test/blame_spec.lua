@@ -444,9 +444,9 @@ describe('blame', function()
         local deleted_row, added_row
 
         for i, line in ipairs(lines) do
-          if line == '-local foo = 1' then
+          if line == 'local foo = 1' then
             deleted_row = i - 1
-          elseif line == '+local bar = 1' then
+          elseif line == 'local bar = 1' then
             added_row = i - 1
           end
         end
@@ -474,19 +474,19 @@ describe('blame', function()
             or 'GitSignsDeleteInline',
           added_regions[1]
         )
-        local deleted = Inspect.inspect_range(popup_buf, deleted_row, 0, #'-local foo = 1')
-        local added = Inspect.inspect_range(popup_buf, added_row, 0, #'+local bar = 1')
+        local deleted = Inspect.inspect_range(popup_buf, deleted_row, 0, #'local foo = 1')
+        local added = Inspect.inspect_range(popup_buf, added_row, 0, #'local bar = 1')
 
         return {
           title = lines[1],
           expected_deleted_keyword = expected_deleted_keyword,
-          actual_deleted_keyword = Inspect.hl_stack_at(deleted, 1),
+          actual_deleted_keyword = Inspect.hl_stack_at(deleted, 0),
           expected_deleted_diff = expected_deleted_diff,
-          actual_deleted_diff = Inspect.hl_stack_at(deleted, deleted_diff_col + 1),
+          actual_deleted_diff = Inspect.hl_stack_at(deleted, deleted_diff_col),
           expected_added_keyword = expected_added_keyword,
-          actual_added_keyword = Inspect.hl_stack_at(added, 1),
+          actual_added_keyword = Inspect.hl_stack_at(added, 0),
           expected_added_diff = expected_added_diff,
-          actual_added_diff = Inspect.hl_stack_at(added, added_diff_col + 1),
+          actual_added_diff = Inspect.hl_stack_at(added, added_diff_col),
         }
       end)
 
@@ -550,9 +550,9 @@ describe('blame', function()
 
         local deleted_row, added_row
         for i, line in ipairs(lines) do
-          if line == '-local foo = 1' then
+          if line == 'local foo = 1' then
             deleted_row = i - 1
-          elseif line == '+local bar = 1' then
+          elseif line == 'local bar = 1' then
             added_row = i - 1
           end
         end

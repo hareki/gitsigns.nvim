@@ -787,23 +787,23 @@ describe('popup preview', function()
         if not deleted_line or not added_line0 then
           return
         end
-        assert(deleted_line == '-' .. removed_line, deleted_line)
-        assert(added_line0 == '+' .. added_line, added_line0)
+        assert(deleted_line == removed_line, deleted_line)
+        assert(added_line0 == added_line, added_line0)
 
-        local deleted_actual = Inspect.inspect_range(popup_buf, 1, 0, #removed_line + 1)
-        local added_actual = Inspect.inspect_range(popup_buf, 2, 0, #added_line + 1)
+        local deleted_actual = Inspect.inspect_range(popup_buf, 1, 0, #removed_line)
+        local added_actual = Inspect.inspect_range(popup_buf, 2, 0, #added_line)
 
         vim.api.nvim_win_close(popup_win, true)
 
         return {
           expected_deleted_keyword = expected_deleted_keyword0,
-          actual_deleted_keyword = Inspect.hl_stack_at(deleted_actual, 1),
+          actual_deleted_keyword = Inspect.hl_stack_at(deleted_actual, 0),
           expected_deleted_diff = expected_deleted_diff0,
-          actual_deleted_diff = Inspect.hl_stack_at(deleted_actual, deleted_diff_col + 1),
+          actual_deleted_diff = Inspect.hl_stack_at(deleted_actual, deleted_diff_col),
           expected_added_keyword = expected_added_keyword0,
-          actual_added_keyword = Inspect.hl_stack_at(added_actual, 1),
+          actual_added_keyword = Inspect.hl_stack_at(added_actual, 0),
           expected_added_diff = expected_added_diff0,
-          actual_added_diff = Inspect.hl_stack_at(added_actual, added_diff_col + 1),
+          actual_added_diff = Inspect.hl_stack_at(added_actual, added_diff_col),
         }
       end)
       assert(result)
@@ -929,10 +929,10 @@ describe('popup preview', function()
         require('gitsigns').preview_hunk()
         local popup_win = assert(require('gitsigns.popup').is_open('hunk'))
         local popup_buf = vim.api.nvim_win_get_buf(popup_win)
-        local deleted = Inspect.inspect_range(popup_buf, 1, 0, #'-local foo = 1')
-        local added = Inspect.inspect_range(popup_buf, 2, 0, #'+local bar = 1')
+        local deleted = Inspect.inspect_range(popup_buf, 1, 0, #'local foo = 1')
+        local added = Inspect.inspect_range(popup_buf, 2, 0, #'local bar = 1')
         vim.api.nvim_win_close(popup_win, true)
-        return Inspect.hl_stack_at(deleted, 1), Inspect.hl_stack_at(added, 1)
+        return Inspect.hl_stack_at(deleted, 0), Inspect.hl_stack_at(added, 0)
       end
 
       local first_deleted0, first_added0 = popup_stacks()
@@ -952,7 +952,7 @@ describe('popup preview', function()
     eq(first_added, second_added)
   end)
 
-  it('keeps source full-line highlights off the synthetic prefix', function()
+  it('keeps source full-line highlights from the first column', function()
     require_source_hls()
 
     setup_test_repo({
@@ -967,9 +967,9 @@ describe('popup preview', function()
     edit(test_file)
 
     exec_lua(function()
-      local ns = vim.api.nvim_create_namespace('gitsigns_test_popup_prefix')
+      local ns = vim.api.nvim_create_namespace('gitsigns_test_popup_full_line')
       vim.api.nvim_create_autocmd('FileType', {
-        group = vim.api.nvim_create_augroup('gitsigns_test_popup_prefix', { clear = true }),
+        group = vim.api.nvim_create_augroup('gitsigns_test_popup_full_line', { clear = true }),
         pattern = 'lua',
         callback = function(args)
           vim.api.nvim_buf_set_extmark(args.buf, ns, 1, 0, {
@@ -993,22 +993,129 @@ describe('popup preview', function()
       assert(hunk and hunk.removed.count == 1 and hunk.added.count == 1)
     end)
 
-    local prefix_stack, text_stack = exec_lua(function()
+    local line, first_col_stack = exec_lua(function()
       local Inspect = require('gitsigns.inspect')
 
       require('gitsigns.popup').close('hunk')
       require('gitsigns').preview_hunk()
       local popup_win = assert(require('gitsigns.popup').is_open('hunk'))
       local popup_buf = vim.api.nvim_win_get_buf(popup_win)
-      local deleted = Inspect.inspect_range(popup_buf, 1, 0, #'--- foo')
+      local line0 = vim.api.nvim_buf_get_lines(popup_buf, 1, 2, false)[1]
+      local deleted = Inspect.inspect_range(popup_buf, 1, 0, #'-- foo')
       vim.api.nvim_win_close(popup_win, true)
 
-      return Inspect.hl_stack_at(deleted, 0), Inspect.hl_stack_at(deleted, 1)
+      return line0, Inspect.hl_stack_at(deleted, 0)
     end)
 
-    assert(contains_hl(prefix_stack, 'GitSignsDeletePreview'))
-    assert(not contains_hl(prefix_stack, 'ErrorMsg'))
-    assert(contains_hl(text_stack, 'ErrorMsg'))
+    eq('-- foo', line)
+    assert(contains_hl(first_col_stack, 'GitSignsDeletePreview'))
+    assert(contains_hl(first_col_stack, 'ErrorMsg'))
+  end)
+
+  --- Highlight stacks of the deleted and added popup lines of a single-line
+  --- change, sampled at the given byte columns.
+  --- @param line_len integer
+  --- @param cols integer[]
+  --- @return Gitsigns.HlStack[] deleted
+  --- @return Gitsigns.HlStack[] added
+  local function preview_hunk_stacks(line_len, cols)
+    return exec_lua(function(line_len0, cols0)
+      local Inspect = require('gitsigns.inspect')
+
+      require('gitsigns.popup').close('hunk')
+      require('gitsigns').preview_hunk()
+      local popup_win = assert(require('gitsigns.popup').is_open('hunk'))
+      local popup_buf = vim.api.nvim_win_get_buf(popup_win)
+      local deleted = Inspect.inspect_range(popup_buf, 1, 0, line_len0)
+      local added = Inspect.inspect_range(popup_buf, 2, 0, line_len0)
+      vim.api.nvim_win_close(popup_win, true)
+
+      local deleted_stacks, added_stacks = {}, {}
+      for i, col in ipairs(cols0) do
+        deleted_stacks[i] = Inspect.hl_stack_at(deleted, col)
+        added_stacks[i] = Inspect.hl_stack_at(added, col)
+      end
+      return deleted_stacks, added_stacks
+    end, line_len, cols)
+  end
+
+  local function wait_for_single_change()
+    expectf(function()
+      local hunk = exec_lua(function()
+        return require('gitsigns').get_hunks()[1]
+      end)
+      assert(hunk and hunk.removed.count == 1 and hunk.added.count == 1)
+    end)
+  end
+
+  it('captures Treesitter highlights and injections from unparsed sources', function()
+    require_source_hls()
+
+    local line = 'vim.cmd("echo 1")'
+    setup_test_repo({
+      test_file_text = {
+        -- Must be valid Lua: error recovery would swallow the injected call.
+        '-- unchanged',
+        line,
+      },
+    })
+    setup_gitsigns(test_config)
+    edit(test_file)
+
+    exec_lua(function()
+      -- Unlike enable_lua_treesitter_on_filetype(), never parse explicitly:
+      -- real configs only call vim.treesitter.start().
+      vim.api.nvim_create_autocmd('FileType', {
+        group = vim.api.nvim_create_augroup('gitsigns_test_popup_unparsed', { clear = true }),
+        pattern = 'lua',
+        callback = function(args)
+          vim.treesitter.start(args.buf, 'lua')
+        end,
+      })
+      vim.bo.filetype = 'lua'
+      vim.api.nvim_buf_set_lines(0, 1, 2, false, { 'vim.cmd("echo 2")' })
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    end)
+
+    wait_for_single_change()
+
+    local injected_col = assert(line:find('echo', 1, true)) - 1
+    local deleted, added = preview_hunk_stacks(#line, { 0, injected_col })
+
+    assert(contains_hl(deleted[1], '@variable.lua'))
+    assert(contains_hl(deleted[2], '@keyword.vim'))
+    assert(contains_hl(added[1], '@variable.lua'))
+    assert(contains_hl(added[2], '@keyword.vim'))
+  end)
+
+  it('mirrors the previewed buffer Treesitter highlighter onto scratch sources', function()
+    require_source_hls()
+
+    local line = 'int foo = 1;'
+    setup_test_repo({
+      test_file_text = {
+        '// unchanged',
+        line,
+      },
+    })
+    setup_gitsigns(test_config)
+    edit(test_file)
+
+    exec_lua(function()
+      -- Use C as, unlike Lua, its bundled ftplugin does not start Treesitter,
+      -- so nothing starts a highlighter for the scratch source on FileType.
+      vim.bo.filetype = 'c'
+      vim.treesitter.start(0, 'c')
+      vim.api.nvim_buf_set_lines(0, 1, 2, false, { 'int bar = 1;' })
+      vim.api.nvim_win_set_cursor(0, { 2, 0 })
+    end)
+
+    wait_for_single_change()
+
+    local deleted, added = preview_hunk_stacks(#line, { 0 })
+
+    assert(contains_hl(deleted[1], '@type.builtin.c'))
+    assert(contains_hl(added[1], '@type.builtin.c'))
   end)
 
   it('renders staged added lines from the index after unstaged edits above', function()
@@ -1052,7 +1159,7 @@ describe('popup preview', function()
       end)
 
       eq('Hunk 1 of 1', title)
-      eq({ '-c', '+C' }, lines)
+      eq({ 'c', 'C' }, lines)
     end)
   end)
 
@@ -1165,11 +1272,11 @@ describe('popup preview', function()
 
     eq({
       'Hunk 1 of 2',
-      '-alpha',
-      '-bravo',
-      '-charlie',
-      '+BRAVO',
-      '+CHARLIE',
+      'alpha',
+      'bravo',
+      'charlie',
+      'BRAVO',
+      'CHARLIE',
     }, lines)
   end)
 end)
