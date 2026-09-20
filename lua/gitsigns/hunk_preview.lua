@@ -13,22 +13,30 @@ local M = {}
 --- @field version any
 
 local NO_NL_TEXT = '\\ No newline at end of file'
-local preview_hls = {
-  removed = {
-    prefix = '-',
-    line = 'GitSignsDeletePreview',
-  },
-  added = {
-    prefix = '+',
-    line = 'GitSignsAddPreview',
-  },
+local preview_line_hls = {
+  removed = 'GitSignsDeletePreview',
+  added = 'GitSignsAddPreview',
 }
+
+--- Configs are not guaranteed to start Treesitter for hidden scratch buffers
+--- on FileType, so mirror the highlighter of the buffer being previewed.
+--- @param pbufnr integer
+--- @param source_buf integer
+local function sync_source_treesitter(pbufnr, source_buf)
+  local active = vim.treesitter.highlighter.active
+  local highlighter = active[source_buf]
+  if highlighter and not active[pbufnr] then
+    vim.treesitter.start(pbufnr, highlighter.tree:lang())
+  end
+end
 
 --- @param pbufnr integer
 --- @param source_buf integer
 local function sync_source_buf_options(pbufnr, source_buf)
   vim.bo[pbufnr].filetype = vim.bo[source_buf].filetype
   vim.bo[pbufnr].tabstop = vim.bo[source_buf].tabstop
+  -- Starting Treesitter resets 'syntax', so do it before syncing 'syntax'.
+  sync_source_treesitter(pbufnr, source_buf)
   vim.bo[pbufnr].syntax = vim.bo[source_buf].syntax
 end
 
@@ -287,9 +295,9 @@ end
 --- @param added string[]
 --- @return Gitsigns.CapturedLine[]
 local function capture_popup_lines(_bufnr, kind, source_bufnr, node, removed, added)
-  local captured = apply_capture_layers(
+  return apply_capture_layers(
     Capture.capture_node(source_bufnr, node),
-    nil,
+    preview_line_hls[kind],
     config.diff_opts.internal and word_diff_regions(removed, added, kind) or nil,
     function(region_type)
       return kind == 'removed' and 'GitSignsDeleteInline'
@@ -298,23 +306,6 @@ local function capture_popup_lines(_bufnr, kind, source_bufnr, node, removed, ad
         or 'GitSignsDeleteInline'
     end
   )
-
-  local prefix = preview_hls[kind].prefix
-  local prefix_len = #prefix
-  local line_hl = preview_hls[kind].line
-  for _, line in ipairs(captured) do
-    if prefix_len > 0 then
-      for _, layer in ipairs(line.layers) do
-        layer.start_col = layer.start_col + prefix_len
-        layer.end_col = layer.end_col + prefix_len
-      end
-      line.text = prefix .. line.text
-    end
-
-    Overlay.add_layer(line, 0, #line.text + 1, line_hl, 1000)
-  end
-
-  return captured
 end
 
 --- Return popup lines for a hunk.

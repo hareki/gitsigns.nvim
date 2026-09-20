@@ -78,12 +78,33 @@ local function layers_from_inspected(inspected)
   return layers
 end
 
+--- Treesitter captures are only read from trees that are already parsed, and
+--- the highlighter only parses what a window has drawn. Without this, hidden
+--- source buffers and off-screen injections capture no Treesitter highlights.
+--- @param bufnr integer
+--- @param start_row integer
+--- @param count integer
+local function parse_treesitter(bufnr, start_row, count)
+  if not source_hls_supported or count <= 0 then
+    return
+  end
+
+  if bufnr == 0 then
+    bufnr = api.nvim_get_current_buf()
+  end
+
+  local highlighter = vim.treesitter.highlighter.active[bufnr]
+  if highlighter then
+    highlighter.tree:parse({ start_row, start_row + count })
+  end
+end
+
 --- @param bufnr integer
 --- @param row integer
 --- @param start_col? integer
 --- @param end_col? integer
 --- @return Gitsigns.CapturedLine
-function M.capture_line(bufnr, row, start_col, end_col)
+local function capture_line(bufnr, row, start_col, end_col)
   local line = api.nvim_buf_get_lines(bufnr, row, row + 1, false)[1] or ''
   local line_len = #line
 
@@ -108,16 +129,27 @@ function M.capture_line(bufnr, row, start_col, end_col)
 end
 
 --- @param bufnr integer
+--- @param row integer
+--- @param start_col? integer
+--- @param end_col? integer
+--- @return Gitsigns.CapturedLine
+function M.capture_line(bufnr, row, start_col, end_col)
+  parse_treesitter(bufnr, row, 1)
+  return capture_line(bufnr, row, start_col, end_col)
+end
+
+--- @param bufnr integer
 --- @param start_row integer
 --- @param count integer
 --- @param opts? {start_col?:integer, end_col?:integer}
 --- @return Gitsigns.CapturedLine[]
 function M.capture_lines(bufnr, start_row, count, opts)
   opts = opts or {}
+  parse_treesitter(bufnr, start_row, count)
   local lines = {} --- @type Gitsigns.CapturedLine[]
   for i = 1, math.max(count, 0) do
     local row = start_row + i - 1
-    lines[i] = M.capture_line(bufnr, row, opts.start_col, opts.end_col)
+    lines[i] = capture_line(bufnr, row, opts.start_col, opts.end_col)
   end
   return lines
 end

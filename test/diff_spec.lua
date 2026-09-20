@@ -277,11 +277,8 @@ describe('diff panel', function()
             if not win then
               return false
             end
-            local text = table.concat(
-              vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 0, -1, false),
-              '\n'
-            )
-            return text:find('-one', 1, true) ~= nil and text:find('+first', 1, true) ~= nil
+            local lines = vim.api.nvim_buf_get_lines(vim.api.nvim_win_get_buf(win), 1, -1, false)
+            return vim.deep_equal({ 'one', 'first' }, lines)
           end)
         )
       end)
