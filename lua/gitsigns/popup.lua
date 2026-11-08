@@ -257,6 +257,12 @@ local function create_win(bufnr, opts, id)
     group = group_id,
     nested = true,
     callback = function()
+      -- Moves inside the popup are its own: tracking them would make a return to the source
+      -- window compare the source cursor against the popup's, and close the popup
+      if api.nvim_get_current_win() == winid then
+        return
+      end
+
       local cursor = api.nvim_win_get_cursor(0)
       -- Did the cursor REALLY change (neovim/neovim#12923)
       if
